@@ -67,6 +67,8 @@ export class BedrockChatModelProvider implements vscode.Disposable, LanguageMode
 
   private chatEndpoints: { model: string; modelMaxPromptTokens: number }[] = [];
   private readonly client: BedrockAPIClient;
+  // Tracks models for which we've already shown the CountTokens unavailable notification
+  private readonly countTokensNotifiedModels = new Set<string>();
 
   private lastThinkingBlock?: ThinkingBlock;
   private readonly streamProcessor: StreamProcessor;
@@ -754,6 +756,7 @@ export class BedrockChatModelProvider implements vscode.Disposable, LanguageMode
 
         // Fall back to estimation if CountTokens is not available
         logger.debug("[Bedrock Model Provider] CountTokens not available, using estimation");
+        this.notifyCountTokensUnavailable(baseModelId);
         return estimateTokens(text);
       } finally {
         cancellationListener.dispose();
@@ -1176,6 +1179,7 @@ export class BedrockChatModelProvider implements vscode.Disposable, LanguageMode
         logger.debug(
           "[Bedrock Model Provider] CountTokens not available for request, using estimation",
         );
+        this.notifyCountTokensUnavailable(modelId);
         return estimateTokens();
       } finally {
         cancellationListener.dispose();
@@ -1415,6 +1419,25 @@ export class BedrockChatModelProvider implements vscode.Disposable, LanguageMode
       });
       logger.debug(`[Bedrock Model Provider] Bedrock message ${idx} (${msg.role}):`, contentTypes);
     }
+  }
+
+  /**
+   * Show a one-time VS Code warning notification when CountTokens API is unavailable
+   * for a given model. Only fires once per model per session.
+   */
+  private notifyCountTokensUnavailable(modelId: string): void {
+    if (this.countTokensNotifiedModels.has(modelId)) {
+      return;
+    }
+    this.countTokensNotifiedModels.add(modelId);
+
+    // Extract a readable model name from the full ID
+    const shortName = modelId.split(".").pop() ?? modelId;
+    vscode.window.showWarningMessage(
+      `Bedrock CountTokens API is not available for ${shortName}. ` +
+        `Token counts will be estimated (less accurate). ` +
+        `To enable exact counts, add the bedrock:CountTokens permission to your IAM policy.`,
+    );
   }
 
   /**

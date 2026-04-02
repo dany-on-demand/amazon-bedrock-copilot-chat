@@ -99,7 +99,7 @@ export class StreamProcessor {
         );
         progress.report(
           new vscode.LanguageModelTextPart(
-            "*(The model returned an empty response. Please try again or rephrase your request.)*",
+            "*(The model completed without visible output — this can happen when the response consisted entirely of tool calls. This is normal and the task likely completed successfully.)*",
           ),
         );
         state.hasEmittedContent = true;
@@ -124,7 +124,7 @@ export class StreamProcessor {
         );
         progress.report(
           new vscode.LanguageModelTextPart(
-            "*(The model returned an empty response. Please try again or rephrase your request.)*",
+            "*(The model completed without visible output — this can happen when the response consisted entirely of tool calls. This is normal and the task likely completed successfully.)*",
           ),
         );
         state.hasEmittedContent = true;
