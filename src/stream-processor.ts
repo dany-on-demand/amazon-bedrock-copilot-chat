@@ -11,8 +11,17 @@ import { type CancellationToken, type LanguageModelResponsePart2, type Progress 
 import { logger } from "./logger";
 import { ToolBuffer } from "./tool-buffer";
 
+export interface TokenUsage {
+  cacheReadInputTokens?: number;
+  cacheWriteInputTokens?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+}
+
 export interface StreamProcessingResult {
   thinkingBlock?: ThinkingBlock;
+  tokenUsage?: TokenUsage;
 }
 
 export interface ThinkingBlock {
@@ -27,6 +36,7 @@ interface ProcessingState {
   hasToolUse: boolean;
   stopReason: string | undefined;
   textChunkCount: number;
+  tokenUsage: TokenUsage | undefined;
   toolBuffer: ToolBuffer;
   toolCallCount: number;
 }
@@ -44,6 +54,7 @@ export class StreamProcessor {
       hasToolUse: false,
       stopReason: undefined,
       textChunkCount: 0,
+      tokenUsage: undefined,
       toolBuffer: new ToolBuffer(),
       toolCallCount: 0,
     };
@@ -93,15 +104,8 @@ export class StreamProcessor {
         !token.isCancellationRequested &&
         state.stopReason === StopReason.END_TURN
       ) {
-        logger.warn(
-          "[Stream Processor] Model returned empty response with stop reason:",
-          state.stopReason,
-        );
-        progress.report(
-          new vscode.LanguageModelTextPart(
-            "*(The model completed without visible output — this can happen when the response consisted entirely of tool calls. This is normal and the task likely completed successfully.)*",
-          ),
-        );
+        console.debug('[stream-processor] No content received from model - stream was empty');
+        progress.report(new vscode.LanguageModelTextPart('Model finished tool calls'));
         state.hasEmittedContent = true;
       }
 
@@ -118,21 +122,14 @@ export class StreamProcessor {
         !token.isCancellationRequested &&
         state.stopReason === StopReason.END_TURN
       ) {
-        logger.warn(
-          "[Stream Processor] Model returned empty response with stop reason:",
-          state.stopReason,
-        );
-        progress.report(
-          new vscode.LanguageModelTextPart(
-            "*(The model completed without visible output — this can happen when the response consisted entirely of tool calls. This is normal and the task likely completed successfully.)*",
-          ),
-        );
+        console.debug('[stream-processor] Stream ended with no emitted content');
+        progress.report(new vscode.LanguageModelTextPart('Model finished tool calls'));
         state.hasEmittedContent = true;
       }
 
       this.validateStreamResult(state, token);
 
-      return { thinkingBlock: state.capturedThinkingBlock };
+      return { thinkingBlock: state.capturedThinkingBlock, tokenUsage: state.tokenUsage };
     } catch (error) {
       logger.error("[Stream Processor] Error during stream processing:", error);
       throw error;
@@ -218,7 +215,7 @@ export class StreamProcessor {
     } else if (event.messageStop) {
       this.handleMessageStop(event.messageStop, state);
     } else if (event.metadata) {
-      this.handleMetadata(event.metadata);
+      this.handleMetadata(event.metadata, state);
     } else {
       logger.info("[Stream Processor] Unknown event type:", Object.keys(event));
     }
@@ -250,8 +247,18 @@ export class StreamProcessor {
     });
   }
 
-  private handleMetadata(metadata: NonNullable<ConverseStreamOutput["metadata"]>): void {
+  private handleMetadata(metadata: NonNullable<ConverseStreamOutput["metadata"]>, state: ProcessingState): void {
     logger.info("[Stream Processor] Metadata received:", metadata);
+
+    if (metadata.usage) {
+      state.tokenUsage = {
+        inputTokens: metadata.usage.inputTokens,
+        outputTokens: metadata.usage.outputTokens,
+        totalTokens: metadata.usage.totalTokens,
+        cacheReadInputTokens: metadata.usage.cacheReadInputTokens,
+        cacheWriteInputTokens: metadata.usage.cacheWriteInputTokens,
+      };
+    }
 
     const guardrailData = metadata?.trace?.guardrail;
     if (!guardrailData) {
