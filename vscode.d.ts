@@ -10792,6 +10792,16 @@ declare module 'vscode' {
 		export const isNewAppInstall: boolean;
 
 		/**
+		 * Indicates whether the application is running in portable mode.
+		 *
+		 * Portable mode is enabled when the application is run from a folder that contains
+		 * a `data` directory, allowing for self-contained installations.
+		 *
+		 * Learn more about [Portable Mode](https://code.visualstudio.com/docs/editor/portable).
+		 */
+		export const isAppPortable: boolean;
+
+		/**
 		 * Indicates whether the users has telemetry enabled.
 		 * Can be observed to determine if the extension should send telemetry.
 		 */
@@ -20560,15 +20570,6 @@ declare module 'vscode' {
 		 * 	The tool-selecting mode to use. The provider must implement respecting this.
 		 */
 		readonly toolMode: LanguageModelChatToolMode;
-
-		/**
-		 * Per-model configuration provided by the user. This contains values configured
-		 * in the user's language models configuration file, validated against the model's
-		 * {@linkcode LanguageModelChatInformation.configurationSchema configurationSchema}.
-		 */
-		readonly modelConfiguration?: {
-			readonly [key: string]: any;
-		};
 	}
 
 	/**
@@ -20623,14 +20624,6 @@ declare module 'vscode' {
 		 * Various features that the model supports such as tool calling or image input.
 		 */
 		readonly capabilities: LanguageModelChatCapabilities;
-
-		/**
-		 * An optional JSON schema describing the configuration options for this model.
-		 * When set, users can specify per-model configuration in their language models
-		 * configuration file. The configured values are merged into the request options
-		 * when sending chat requests to this model.
-		 */
-		readonly configurationSchema?: LanguageModelConfigurationSchema;
 	}
 
 	/**
@@ -20675,33 +20668,6 @@ declare module 'vscode' {
 	 * The various message types which a {@linkcode LanguageModelChatProvider} can emit in the chat response stream
 	 */
 	export type LanguageModelResponsePart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart;
-
-	/**
-	 * Extended response part type that includes thinking parts.
-	 */
-	export type LanguageModelResponsePart2 = LanguageModelResponsePart | LanguageModelThinkingPart;
-
-	/**
-	 * A [JSON Schema](https://json-schema.org) describing configuration options for a language model.
-	 * Each property in `properties` defines a configurable option using standard JSON Schema fields
-	 * plus additional display hints.
-	 */
-	export type LanguageModelConfigurationSchema = {
-		readonly properties?: {
-			readonly [key: string]: Record<string, any> & {
-				/**
-				 * Human-readable labels for enum values, shown instead of the raw values.
-				 * Must have the same length and order as `enum`.
-				 */
-				readonly enumItemLabels?: string[];
-				/**
-				 * The group this property belongs to. When set to `'navigation'`, the property
-				 * is shown as a primary action in the model picker.
-				 */
-				readonly group?: string;
-			};
-		};
-	};
 
 	/**
 	 * The various message types which can be sent via {@linkcode LanguageModelChat.sendRequest } and processed by a {@linkcode LanguageModelChatProvider}
@@ -21091,23 +21057,6 @@ declare module 'vscode' {
 		 * @param mimeType The mime type of the data.
 		 */
 		constructor(data: Uint8Array, mimeType: string);
-	}
-
-	/**
-	 * Represents a thinking/reasoning part in a language model response.
-	 * This is used when the model performs extended thinking before responding.
-	 */
-	export class LanguageModelThinkingPart {
-		/**
-		 * The thinking text content.
-		 */
-		value: string;
-
-		/**
-		 * Construct a thinking part with the given content.
-		 * @param value The thinking text.
-		 */
-		constructor(value: string);
 	}
 
 	/**
